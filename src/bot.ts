@@ -27,14 +27,26 @@ export class Bot {
   public chat = async (action: string, message: string, initial = false) => {
     console.time(`chatgpt ${action} ${message.length} tokens cost`)
     let response = null
+    let error = null
     try {
       response = await this.chat_(action, message, initial)
-    } catch (e: any) {
-      core.warning(`Failed to chat: ${e}, backtrace: ${e.stack}`)
+    } catch (err: any) {
+      error = err
+      core.warning(`Failed to chat: ${err}, backtrace: ${err.stack}`)
     } finally {
       console.timeEnd(`chatgpt ${action} ${message.length} tokens cost`)
-      return response
     }
+
+    if (error && error.name === 'RateLimitError') {
+      const retryAfter = (Number(error.headers?.['retry-after']) || 20) * 1000
+      core.warning(`Rate limit exceeded, retry after ${retryAfter} seconds`);
+      await new Promise(resolve => setTimeout(resolve, retryAfter))
+      response = await this.chat(action, message, initial)
+    } else if (error) {
+      core.warning(`>>>> error.name: ${error.name}, error.status: ${error.status}`)
+    }
+
+    return response
   }
 
   private chat_ = async (action: string, message: string, initial = false) => {
@@ -65,10 +77,8 @@ export class Bot {
         model: 'gpt-3.5-turbo',
         temperature: 0
       }
-      const {data, response} = await this.openai.chat.completions
-        .create(params)
-        .withResponse()
-      chatCompletion = data
+
+      chatCompletion = await this.openai.chat.completions.create(params)
 
       try {
         core.info(`chatCompletion: ${JSON.stringify(chatCompletion)}`)
