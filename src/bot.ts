@@ -54,13 +54,15 @@ export class Bot {
 
     let chatCompletion: OpenAI.Chat.ChatCompletion | null = null
     if (this.openai) {
-      // let messages = [];
-      // if (this.history && !initial) {
-      //   messages.push(this.history.choices[0]);
-      // }
-      // messages.push({ role: 'user', content: message });
+      let messages: OpenAI.ChatCompletionMessageParam[] = []
+      if (this.history && !initial) {
+        messages.push(
+          this.history.choices[0].message as OpenAI.ChatCompletionMessageParam
+        )
+      }
+      messages.push({role: 'user', content: message})
       const params: OpenAI.Chat.ChatCompletionCreateParams = {
-        messages: [{role: 'user', content: message}],
+        messages,
         model: 'gpt-3.5-turbo',
         temperature: 0
       }
@@ -79,12 +81,12 @@ export class Bot {
     } else {
       core.setFailed('The chatgpt API is not initialized')
     }
-    let response_text = ''
+    let response_text: string | null = ''
     if (chatCompletion) {
       if (initial) {
         this.history = chatCompletion
       }
-      // response_text = response.text
+      response_text = chatCompletion.choices[0].message.content
     } else {
       core.warning('chatgpt response is null')
     }

@@ -32351,11 +32351,11 @@ class Bot {
         this.options = options;
         if (process.env.OPENAI_API_KEY) {
             this.openai = new openai({
-                apiKey: process.env.OPENAI_API_KEY,
+                apiKey: process.env.OPENAI_API_KEY
             });
         }
         else {
-            const err = "Unable to initialize the chatgpt API, " +
+            const err = 'Unable to initialize the chatgpt API, ' +
                 "'OPENAI_API_KEY' environment variable is not available";
             throw new Error(err);
         }
@@ -32387,17 +32387,19 @@ class Bot {
         }
         let chatCompletion = null;
         if (this.openai) {
-            // let messages = [];
-            // if (this.history && !initial) {
-            //   messages.push(this.history.choices[0]);
-            // }
-            // messages.push({ role: 'user', content: message });
+            let messages = [];
+            if (this.history && !initial) {
+                messages.push(this.history.choices[0].message);
+            }
+            messages.push({ role: 'user', content: message });
             const params = {
-                messages: [{ role: 'user', content: message }],
+                messages,
                 model: 'gpt-3.5-turbo',
-                temperature: 0,
+                temperature: 0
             };
-            const { data, response } = await this.openai.chat.completions.create(params).withResponse();
+            const { data, response } = await this.openai.chat.completions
+                .create(params)
+                .withResponse();
             chatCompletion = data;
             try {
                 core.info(`chatCompletion: ${JSON.stringify(chatCompletion)}`);
@@ -32414,7 +32416,7 @@ class Bot {
             if (initial) {
                 this.history = chatCompletion;
             }
-            // response_text = response.text
+            response_text = chatCompletion.choices[0].message.content;
         }
         else {
             core.warning('chatgpt response is null');
