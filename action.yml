@@ -1,6 +1,5 @@
 name: 'chatgpt-action'
 description: 'A collection of ChatGPT assistants, e.g., code viewer, labeler, assigner, etc.'
-author: 'Tao He'
 inputs:
   action:
     type: string
