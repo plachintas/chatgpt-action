@@ -32368,19 +32368,25 @@ class Bot {
             response = await this.chat_(action, message, initial);
         }
         catch (err) {
-            core.warning(`Failed to chat: ${err}, backtrace: ${err.stack}`);
+            // In case this is a RateLimitError, we retry after the suggested time
+            if (err && err.status === 429) {
+                const retryAfter = (Number(err.headers?.['retry-after']) || 20) * 1000;
+                core.warning(`Rate limit exceeded, retry after ${retryAfter} seconds`);
+                await new Promise(resolve => setTimeout(resolve, retryAfter));
+                try {
+                    response = await this.chat_(action, message, initial);
+                }
+                catch (err) {
+                    core.warning(`Failed to chat: ${err}, backtrace: ${err.stack}`);
+                }
+            }
+            else if (err) {
+                core.warning(`Failed to chat: ${err}, backtrace: ${err.stack}`);
+            }
         }
         finally {
             console.timeEnd(`chatgpt ${action} ${message.length} tokens cost`);
         }
-        // if (error && error.name === 'RateLimitError') {
-        //   const retryAfter = (Number(error.headers?.['retry-after']) || 20) * 1000
-        //   core.warning(`Rate limit exceeded, retry after ${retryAfter} seconds`);
-        //   await new Promise(resolve => setTimeout(resolve, retryAfter))
-        //   response = await this.chat(action, message, initial)
-        // } else if (error) {
-        //   core.warning(`>>>> error.name: ${error.name}, error.status: ${error.status}`)
-        // }
         return response;
     };
     chat_ = async (action, message, initial = false) => {
@@ -32401,26 +32407,12 @@ class Bot {
                 messages = [...this.history];
             }
             messages.push({ role: 'user', content: message });
-            core.warning(`messages: ${JSON.stringify(messages)}`);
             const params = {
                 messages,
                 model: 'gpt-3.5-turbo',
                 temperature: 0
             };
-            try {
-                chatCompletion = await this.openai.chat.completions.create(params);
-            }
-            catch (error) {
-                if (error && error.status === 429) {
-                    const retryAfter = (Number(error.headers?.['retry-after']) || 20) * 1000;
-                    core.warning(`Rate limit exceeded, retry after ${retryAfter} seconds`);
-                    await new Promise(resolve => setTimeout(resolve, retryAfter));
-                    chatCompletion = await this.openai.chat.completions.create(params);
-                }
-                else if (error) {
-                    core.warning(`>>>> error.name: ${error.name}, error.status: ${error.status}`);
-                }
-            }
+            chatCompletion = await this.openai.chat.completions.create(params);
             try {
                 core.info(`chatCompletion: ${JSON.stringify(chatCompletion)}`);
             }
@@ -32441,10 +32433,6 @@ class Bot {
         else {
             core.warning('chatgpt response is null');
         }
-        // // remove the prefix "with " in the response
-        // if (response_text.startsWith('with ')) {
-        //   response_text = response_text.substring(5)
-        // }
         if (this.options.debug) {
             core.info(`chatgpt responses: ${response_text}`);
         }
