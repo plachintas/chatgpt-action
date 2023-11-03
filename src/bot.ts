@@ -4,10 +4,9 @@ import * as core from '@actions/core'
 import OpenAI from 'openai'
 
 export class Bot {
-  // private turbo: ChatGPTAPI | null = null // not free
   private openai: OpenAI | null = null
   private history: OpenAI.Chat.ChatCompletion | null = null
-  private MAX_PATCH_COUNT: number = 4000
+  private MAX_PATCH_COUNT: number = 10000 // Previously was 4000
 
   private options: Options
 
