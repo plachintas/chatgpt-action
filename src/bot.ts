@@ -5,8 +5,8 @@ import OpenAI from 'openai'
 
 export class Bot {
   private openai: OpenAI | null = null
-  private history: OpenAI.Chat.ChatCompletion | null = null
-  private MAX_PATCH_COUNT: number = 10000 // Previously was 4000
+  private history: OpenAI.Chat.ChatCompletionMessage[] = []
+  private MAX_PATCH_COUNT: number = 30000 // Previously was 4000
 
   private options: Options
 
@@ -14,7 +14,9 @@ export class Bot {
     this.options = options
     if (process.env.OPENAI_API_KEY) {
       this.openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY
+        apiKey: process.env.OPENAI_API_KEY,
+        // maxRetries: 0,
+        timeout: 20 * 1000 // the default is 10 min
       })
     } else {
       const err =
@@ -27,24 +29,22 @@ export class Bot {
   public chat = async (action: string, message: string, initial = false) => {
     console.time(`chatgpt ${action} ${message.length} tokens cost`)
     let response = null
-    let error = null
     try {
       response = await this.chat_(action, message, initial)
     } catch (err: any) {
-      error = err
       core.warning(`Failed to chat: ${err}, backtrace: ${err.stack}`)
     } finally {
       console.timeEnd(`chatgpt ${action} ${message.length} tokens cost`)
     }
 
-    if (error && error.name === 'RateLimitError') {
-      const retryAfter = (Number(error.headers?.['retry-after']) || 20) * 1000
-      core.warning(`Rate limit exceeded, retry after ${retryAfter} seconds`);
-      await new Promise(resolve => setTimeout(resolve, retryAfter))
-      response = await this.chat(action, message, initial)
-    } else if (error) {
-      core.warning(`>>>> error.name: ${error.name}, error.status: ${error.status}`)
-    }
+    // if (error && error.name === 'RateLimitError') {
+    //   const retryAfter = (Number(error.headers?.['retry-after']) || 20) * 1000
+    //   core.warning(`Rate limit exceeded, retry after ${retryAfter} seconds`);
+    //   await new Promise(resolve => setTimeout(resolve, retryAfter))
+    //   response = await this.chat(action, message, initial)
+    // } else if (error) {
+    //   core.warning(`>>>> error.name: ${error.name}, error.status: ${error.status}`)
+    // }
 
     return response
   }
@@ -64,21 +64,34 @@ export class Bot {
     }
 
     let chatCompletion: OpenAI.Chat.ChatCompletion | null = null
+    let messages: OpenAI.ChatCompletionMessageParam[] = []
     if (this.openai) {
-      let messages: OpenAI.ChatCompletionMessageParam[] = []
-      if (this.history && !initial) {
-        messages.push(
-          this.history.choices[0].message as OpenAI.ChatCompletionMessageParam
-        )
+      if (this.history.length > 0 && !initial) {
+        messages = [...this.history]
       }
       messages.push({role: 'user', content: message})
+      core.warning(`messages: ${JSON.stringify(messages)}`)
       const params: OpenAI.Chat.ChatCompletionCreateParams = {
         messages,
         model: 'gpt-3.5-turbo',
         temperature: 0
       }
 
-      chatCompletion = await this.openai.chat.completions.create(params)
+      try {
+        chatCompletion = await this.openai.chat.completions.create(params)
+      } catch (error: any) {
+        if (error && error.status === 429) {
+          const retryAfter =
+            (Number(error.headers?.['retry-after']) || 20) * 1000
+          core.warning(`Rate limit exceeded, retry after ${retryAfter} seconds`)
+          await new Promise(resolve => setTimeout(resolve, retryAfter))
+          chatCompletion = await this.openai.chat.completions.create(params)
+        } else if (error) {
+          core.warning(
+            `>>>> error.name: ${error.name}, error.status: ${error.status}`
+          )
+        }
+      }
 
       try {
         core.info(`chatCompletion: ${JSON.stringify(chatCompletion)}`)
@@ -93,7 +106,7 @@ export class Bot {
     let response_text: string | null = ''
     if (chatCompletion) {
       if (initial) {
-        this.history = chatCompletion
+        this.history = [...messages, chatCompletion.choices[0].message]
       }
       response_text = chatCompletion.choices[0].message.content
     } else {

@@ -32342,16 +32342,17 @@ var openai_fileFromPath = fileFromPath;
 
 
 class Bot {
-    // private turbo: ChatGPTAPI | null = null // not free
     openai = null;
-    history = null;
-    MAX_PATCH_COUNT = 4000;
+    history = [];
+    MAX_PATCH_COUNT = 30000; // Previously was 4000
     options;
     constructor(options) {
         this.options = options;
         if (process.env.OPENAI_API_KEY) {
             this.openai = new openai({
-                apiKey: process.env.OPENAI_API_KEY
+                apiKey: process.env.OPENAI_API_KEY,
+                // maxRetries: 0,
+                timeout: 20 * 1000 // the default is 10 min
             });
         }
         else {
@@ -32366,13 +32367,21 @@ class Bot {
         try {
             response = await this.chat_(action, message, initial);
         }
-        catch (e) {
-            core.warning(`Failed to chat: ${e}, backtrace: ${e.stack}`);
+        catch (err) {
+            core.warning(`Failed to chat: ${err}, backtrace: ${err.stack}`);
         }
         finally {
             console.timeEnd(`chatgpt ${action} ${message.length} tokens cost`);
-            return response;
         }
+        // if (error && error.name === 'RateLimitError') {
+        //   const retryAfter = (Number(error.headers?.['retry-after']) || 20) * 1000
+        //   core.warning(`Rate limit exceeded, retry after ${retryAfter} seconds`);
+        //   await new Promise(resolve => setTimeout(resolve, retryAfter))
+        //   response = await this.chat(action, message, initial)
+        // } else if (error) {
+        //   core.warning(`>>>> error.name: ${error.name}, error.status: ${error.status}`)
+        // }
+        return response;
     };
     chat_ = async (action, message, initial = false) => {
         if (!message) {
@@ -32386,21 +32395,32 @@ class Bot {
             core.info(`sending to chatgpt: ${message}`);
         }
         let chatCompletion = null;
+        let messages = [];
         if (this.openai) {
-            let messages = [];
-            if (this.history && !initial) {
-                messages.push(this.history.choices[0].message);
+            if (this.history.length > 0 && !initial) {
+                messages = [...this.history];
             }
             messages.push({ role: 'user', content: message });
+            core.warning(`messages: ${JSON.stringify(messages)}`);
             const params = {
                 messages,
                 model: 'gpt-3.5-turbo',
                 temperature: 0
             };
-            const { data, response } = await this.openai.chat.completions
-                .create(params)
-                .withResponse();
-            chatCompletion = data;
+            try {
+                chatCompletion = await this.openai.chat.completions.create(params);
+            }
+            catch (error) {
+                if (error && error.status === 429) {
+                    const retryAfter = (Number(error.headers?.['retry-after']) || 20) * 1000;
+                    core.warning(`Rate limit exceeded, retry after ${retryAfter} seconds`);
+                    await new Promise(resolve => setTimeout(resolve, retryAfter));
+                    chatCompletion = await this.openai.chat.completions.create(params);
+                }
+                else if (error) {
+                    core.warning(`>>>> error.name: ${error.name}, error.status: ${error.status}`);
+                }
+            }
             try {
                 core.info(`chatCompletion: ${JSON.stringify(chatCompletion)}`);
             }
@@ -32414,7 +32434,7 @@ class Bot {
         let response_text = '';
         if (chatCompletion) {
             if (initial) {
-                this.history = chatCompletion;
+                this.history = [...messages, chatCompletion.choices[0].message];
             }
             response_text = chatCompletion.choices[0].message.content;
         }
