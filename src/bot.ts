@@ -6,7 +6,6 @@ import OpenAI from 'openai'
 export class Bot {
   private openai: OpenAI | null = null
   private history: OpenAI.Chat.ChatCompletionMessage[] = []
-  private MAX_PATCH_COUNT: number = 30000 // Previously was 4000
 
   private options: Options
 
@@ -15,8 +14,7 @@ export class Bot {
     if (process.env.OPENAI_API_KEY) {
       this.openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
-        // maxRetries: 0,
-        timeout: 20 * 1000 // the default is 10 min
+        timeout: 30 * 1000 // Set to 30 seconds, the default is 10 min.
       })
     } else {
       const err =
@@ -32,19 +30,9 @@ export class Bot {
     try {
       response = await this.chat_(action, message, initial)
     } catch (err: any) {
-      // In case this is a RateLimitError, we retry after the suggested time
-      if (err && err.status === 429) {
-        const retryAfter = (Number(err.headers?.['retry-after']) || 20) * 1000
-        core.warning(`Rate limit exceeded, retry after ${retryAfter} seconds`)
-        await new Promise(resolve => setTimeout(resolve, retryAfter))
-        try {
-          response = await this.chat_(action, message, initial)
-        } catch (err: any) {
-          core.warning(`Failed to chat: ${err}, backtrace: ${err.stack}`)
-        }
-      } else if (err) {
-        core.warning(`Failed to chat: ${err}, backtrace: ${err.stack}`)
-      }
+      core.warning(
+        `Failed to chat: ${err}, backtrace: ${err.stack}, status: ${err.status}`
+      )
     } finally {
       console.timeEnd(`chatgpt ${action} ${message.length} tokens cost`)
     }
@@ -56,11 +44,11 @@ export class Bot {
     if (!message) {
       return ''
     }
-    if (message.length > this.MAX_PATCH_COUNT) {
+    if (message.length > this.options.max_prompt_chars_count) {
       core.warning(
-        `Message is too long, truncate to ${this.MAX_PATCH_COUNT} tokens`
+        `Message is too long, truncate to ${this.options.max_prompt_chars_count} chars`
       )
-      message = message.substring(0, this.MAX_PATCH_COUNT)
+      message = message.substring(0, this.options.max_prompt_chars_count)
     }
     if (this.options.debug) {
       core.info(`sending to chatgpt: ${message}`)
@@ -75,11 +63,26 @@ export class Bot {
       messages.push({role: 'user', content: message})
       const params: OpenAI.Chat.ChatCompletionCreateParams = {
         messages,
-        model: 'gpt-3.5-turbo',
+        model: this.options.model,
         temperature: 0
       }
+      core.info(`chatCompletion messages count: ${messages.length}`)
 
-      chatCompletion = await this.openai.chat.completions.create(params)
+      try {
+        chatCompletion = await this.openai.chat.completions.create(params)
+      } catch (error: any) {
+        // In case this is a RateLimitError, we retry after the suggested time
+        // More info regarding OpenAI API errors: https://github.com/openai/openai-node#handling-errors
+        if (error instanceof OpenAI.APIError && error.status === 429) {
+          const retryAfter =
+            (Number(error.headers?.['retry-after']) || 20) * 1000
+          core.info(`Rate limit exceeded, retry after ${retryAfter} seconds`)
+          await new Promise(resolve => setTimeout(resolve, retryAfter))
+          chatCompletion = await this.openai.chat.completions.create(params)
+        } else {
+          throw error
+        }
+      }
 
       try {
         core.info(`chatCompletion: ${JSON.stringify(chatCompletion)}`)

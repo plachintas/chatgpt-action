@@ -1,5 +1,6 @@
 name: 'chatgpt-action'
 description: 'A collection of ChatGPT assistants, e.g., code viewer, labeler, assigner, etc.'
+author: 'Tao He & Adjust FE Platform Team'
 inputs:
   action:
     type: string
@@ -11,24 +12,31 @@ inputs:
     required: false
     description: 'Enable debug mode'
     default: false
+  model:
+    type: string
+    required: false
+    description: 'The ChatGPT model to use'
+    default: 'gpt-3.5-turbo'
+  max_prompt_chars_count:
+    type: number
+    required: false
+    description: 'The maximum number of characters (not chunks) for each prompt'
+    default: 50000
   path_filters:
     type: string
     required: false
     description: |
-      The path filters, e.g., "src/**.py", "!dist/**", each line will be considered as one pattern.
+      The path filters, e.g., "src/**.js", "!dist/**", each line will be considered as one pattern.
       See also
 
       - https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#onpushpull_requestpull_request_targetpathspaths-ignore
       - https://github.com/isaacs/minimatch
     default: |
-      !dist/**
-      **/package-lock.json
-  chatgpt_reverse_proxy:
-    type: boolean
-    required: false
-    description: |
-      The URL of the chatgpt reverse proxy, see also https://github.com/transitive-bullshit/chatgpt-api#reverse-proxy
-    default: https://chat.duti.tech/api/conversation
+      src/**/*.{js,ts,tsx}
+      *.config.js
+      package.json
+      .github/**/*.{yml,yaml}
+      scripts/**/*.{js,mjs}
   review_comment_lgtm:
     type: boolean
     required: false

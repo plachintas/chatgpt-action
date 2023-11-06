@@ -8,7 +8,8 @@ async function run(): Promise<void> {
   const action: string = core.getInput('action')
   let options: Options = new Options(
     core.getBooleanInput('debug'),
-    core.getInput('chatgpt_reverse_proxy'),
+    core.getInput('model'),
+    core.getInput('max_prompt_chars_count'),
     core.getBooleanInput('review_comment_lgtm'),
     core.getMultilineInput('path_filters')
   )

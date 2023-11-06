@@ -32344,15 +32344,13 @@ var openai_fileFromPath = fileFromPath;
 class Bot {
     openai = null;
     history = [];
-    MAX_PATCH_COUNT = 30000; // Previously was 4000
     options;
     constructor(options) {
         this.options = options;
         if (process.env.OPENAI_API_KEY) {
             this.openai = new openai({
                 apiKey: process.env.OPENAI_API_KEY,
-                // maxRetries: 0,
-                timeout: 20 * 1000 // the default is 10 min
+                timeout: 30 * 1000 // Set to 30 seconds, the default is 10 min.
             });
         }
         else {
@@ -32368,21 +32366,7 @@ class Bot {
             response = await this.chat_(action, message, initial);
         }
         catch (err) {
-            // In case this is a RateLimitError, we retry after the suggested time
-            if (err && err.status === 429) {
-                const retryAfter = (Number(err.headers?.['retry-after']) || 20) * 1000;
-                core.warning(`Rate limit exceeded, retry after ${retryAfter} seconds`);
-                await new Promise(resolve => setTimeout(resolve, retryAfter));
-                try {
-                    response = await this.chat_(action, message, initial);
-                }
-                catch (err) {
-                    core.warning(`Failed to chat: ${err}, backtrace: ${err.stack}`);
-                }
-            }
-            else if (err) {
-                core.warning(`Failed to chat: ${err}, backtrace: ${err.stack}`);
-            }
+            core.warning(`Failed to chat: ${err}, backtrace: ${err.stack}, status: ${err.status}`);
         }
         finally {
             console.timeEnd(`chatgpt ${action} ${message.length} tokens cost`);
@@ -32393,9 +32377,9 @@ class Bot {
         if (!message) {
             return '';
         }
-        if (message.length > this.MAX_PATCH_COUNT) {
-            core.warning(`Message is too long, truncate to ${this.MAX_PATCH_COUNT} tokens`);
-            message = message.substring(0, this.MAX_PATCH_COUNT);
+        if (message.length > this.options.max_prompt_chars_count) {
+            core.warning(`Message is too long, truncate to ${this.options.max_prompt_chars_count} chars`);
+            message = message.substring(0, this.options.max_prompt_chars_count);
         }
         if (this.options.debug) {
             core.info(`sending to chatgpt: ${message}`);
@@ -32409,10 +32393,26 @@ class Bot {
             messages.push({ role: 'user', content: message });
             const params = {
                 messages,
-                model: 'gpt-3.5-turbo',
+                model: this.options.model,
                 temperature: 0
             };
-            chatCompletion = await this.openai.chat.completions.create(params);
+            core.info(`chatCompletion messages count: ${messages.length}`);
+            try {
+                chatCompletion = await this.openai.chat.completions.create(params);
+            }
+            catch (error) {
+                // In case this is a RateLimitError, we retry after the suggested time
+                // More info regarding OpenAI API errors: https://github.com/openai/openai-node#handling-errors
+                if (error instanceof openai.APIError && error.status === 429) {
+                    const retryAfter = (Number(error.headers?.['retry-after']) || 20) * 1000;
+                    core.info(`Rate limit exceeded, retry after ${retryAfter} seconds`);
+                    await new Promise(resolve => setTimeout(resolve, retryAfter));
+                    chatCompletion = await this.openai.chat.completions.create(params);
+                }
+                else {
+                    throw error;
+                }
+            }
             try {
                 core.info(`chatCompletion: ${JSON.stringify(chatCompletion)}`);
             }
@@ -32614,7 +32614,7 @@ __nccwpck_require__.a(__webpack_module__, async (__webpack_handle_async_dependen
 
 async function run() {
     const action = _actions_core__WEBPACK_IMPORTED_MODULE_4__.getInput('action');
-    let options = new _options_js__WEBPACK_IMPORTED_MODULE_1__/* .Options */ .Ei(_actions_core__WEBPACK_IMPORTED_MODULE_4__.getBooleanInput('debug'), _actions_core__WEBPACK_IMPORTED_MODULE_4__.getInput('chatgpt_reverse_proxy'), _actions_core__WEBPACK_IMPORTED_MODULE_4__.getBooleanInput('review_comment_lgtm'), _actions_core__WEBPACK_IMPORTED_MODULE_4__.getMultilineInput('path_filters'));
+    let options = new _options_js__WEBPACK_IMPORTED_MODULE_1__/* .Options */ .Ei(_actions_core__WEBPACK_IMPORTED_MODULE_4__.getBooleanInput('debug'), _actions_core__WEBPACK_IMPORTED_MODULE_4__.getInput('model'), _actions_core__WEBPACK_IMPORTED_MODULE_4__.getInput('max_prompt_chars_count'), _actions_core__WEBPACK_IMPORTED_MODULE_4__.getBooleanInput('review_comment_lgtm'), _actions_core__WEBPACK_IMPORTED_MODULE_4__.getMultilineInput('path_filters'));
     const prompts = new _options_js__WEBPACK_IMPORTED_MODULE_1__/* .Prompts */ .jc(_actions_core__WEBPACK_IMPORTED_MODULE_4__.getInput('review_beginning'), _actions_core__WEBPACK_IMPORTED_MODULE_4__.getInput('review_patch'), _actions_core__WEBPACK_IMPORTED_MODULE_4__.getInput('scoring_beginning'), _actions_core__WEBPACK_IMPORTED_MODULE_4__.getInput('scoring'));
     // initialize chatgpt bot
     let bot = null;
@@ -34222,14 +34222,17 @@ class Inputs {
 }
 class Options {
     debug;
-    chatgpt_reverse_proxy;
+    model;
+    max_prompt_chars_count;
     review_comment_lgtm;
     path_filters;
-    constructor(debug, chatgpt_reverse_proxy, review_comment_lgtm = false, path_filters = null) {
+    constructor(debug, model, max_prompt_chars_count, review_comment_lgtm = false, path_filters = null) {
         this.debug = debug;
-        this.chatgpt_reverse_proxy = chatgpt_reverse_proxy;
+        this.model = model;
+        this.max_prompt_chars_count = Number(max_prompt_chars_count);
         this.review_comment_lgtm = review_comment_lgtm;
         this.path_filters = new PathFilter(path_filters);
+        core.info(`used options: ${JSON.stringify(this)}`);
     }
     check_path(path) {
         let ok = this.path_filters.check(path);
@@ -34256,26 +34259,20 @@ class PathFilter {
         }
     }
     check(path) {
-        let include_all = this.rules.length == 0;
         let matched = false;
         for (const [rule, exclude] of this.rules) {
             if (exclude) {
                 if (minimatch(path, rule)) {
                     return false;
                 }
-                include_all = true;
             }
             else {
                 if (minimatch(path, rule)) {
                     matched = true;
-                    include_all = false;
-                }
-                else {
-                    return false;
                 }
             }
         }
-        return include_all || matched;
+        return matched;
     }
 }
 

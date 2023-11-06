@@ -165,14 +165,14 @@ See also: [./action.yml](./action.yml)
 #### Environment variables
 
 - `GITHUB_TOKEN`
-- `OPENAI_API_KEY`: use this to authenticate with OpenAI API, official ChatGPT's behavior using
-  `text-davinci-003`, see also: https://github.com/transitive-bullshit/chatgpt-api
+- `OPENAI_API_KEY`: use this to authenticate with OpenAI API
 
 #### Inputs
 
 - `action`: The action to run, currently can be `review`, `score`
 - `debug`: Enable debug mode, will show messages and responses between ChatGPT server in CI logs.
-- `chatgpt_reverse_proxy`: The URL of the ChatGPT reverse proxy
+- `model`: The model to use, the default is `gpt-3.5-turbo`
+- `max_prompt_chars_count`: The maximum number of characters in the prompt sent to ChatGPT.
 - `review_comment_lgtm`: Leave comments even the patch is LGTM
 - `path_filters`: Rules to filter files to be reviewed.
 
