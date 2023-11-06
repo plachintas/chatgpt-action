@@ -82,20 +82,24 @@ export class Inputs {
 
 export class Options {
   public debug: boolean
-  public chatgpt_reverse_proxy: string
+  public model: string
+  public max_prompt_chars_count: number
   public review_comment_lgtm: boolean
   public path_filters: PathFilter
 
   constructor(
     debug: boolean,
-    chatgpt_reverse_proxy: string,
+    model: string,
+    max_prompt_chars_count: string | number,
     review_comment_lgtm: boolean = false,
     path_filters: Array<string> | null = null
   ) {
     this.debug = debug
-    this.chatgpt_reverse_proxy = chatgpt_reverse_proxy
+    this.model = model
+    this.max_prompt_chars_count = Number(max_prompt_chars_count)
     this.review_comment_lgtm = review_comment_lgtm
     this.path_filters = new PathFilter(path_filters)
+    core.info(`used options: ${JSON.stringify(this)}`)
   }
 
   public check_path(path: string): boolean {
@@ -125,23 +129,18 @@ export class PathFilter {
   }
 
   public check(path: string): boolean {
-    let include_all = this.rules.length == 0
     let matched = false
     for (const [rule, exclude] of this.rules) {
       if (exclude) {
         if (minimatch(path, rule)) {
           return false
         }
-        include_all = true
       } else {
         if (minimatch(path, rule)) {
           matched = true
-          include_all = false
-        } else {
-          return false
         }
       }
     }
-    return include_all || matched
+    return matched
   }
 }

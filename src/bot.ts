@@ -1,41 +1,25 @@
 import './fetch-polyfill.js'
 import {Options} from './options.js'
 import * as core from '@actions/core'
-import {
-  ChatGPTAPI,
-  ChatGPTUnofficialProxyAPI,
-  ChatMessage,
-  SendMessageOptions,
-  SendMessageBrowserOptions
-} from 'chatgpt'
+import OpenAI from 'openai'
 
 export class Bot {
-  private bot: ChatGPTUnofficialProxyAPI | null = null // free
-  private turbo: ChatGPTAPI | null = null // not free
-  private history: ChatMessage | null = null
-  private MAX_PATCH_COUNT: number = 4000
+  private openai: OpenAI | null = null
+  private history: OpenAI.Chat.ChatCompletionMessage[] = []
 
   private options: Options
 
   constructor(options: Options) {
     this.options = options
-    if (process.env.CHATGPT_ACCESS_TOKEN) {
-      this.bot = new ChatGPTUnofficialProxyAPI({
-        accessToken: process.env.CHATGPT_ACCESS_TOKEN,
-        apiReverseProxyUrl: options.chatgpt_reverse_proxy,
-        debug: options.debug
-      })
-    } else if (process.env.OPENAI_API_KEY) {
-      this.turbo = new ChatGPTAPI({
+    if (process.env.OPENAI_API_KEY) {
+      this.openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
-        debug: options.debug
-        // assistantLabel: " ",
-        // userLabel: " ",
+        timeout: 30 * 1000 // Set to 30 seconds, the default is 10 min.
       })
     } else {
       const err =
-        "Unable to initialize the chatgpt API, both 'CHATGPT_ACCESS_TOKEN' " +
-        "and 'OPENAI_API_KEY' environment variable are not available"
+        'Unable to initialize the chatgpt API, ' +
+        "'OPENAI_API_KEY' environment variable is not available"
       throw new Error(err)
     }
   }
@@ -45,72 +29,79 @@ export class Bot {
     let response = null
     try {
       response = await this.chat_(action, message, initial)
-    } catch (e: any) {
-      core.warning(`Failed to chat: ${e}, backtrace: ${e.stack}`)
+    } catch (err: any) {
+      core.warning(
+        `Failed to chat: ${err}, backtrace: ${err.stack}, status: ${err.status}`
+      )
     } finally {
       console.timeEnd(`chatgpt ${action} ${message.length} tokens cost`)
-      return response
     }
+
+    return response
   }
 
   private chat_ = async (action: string, message: string, initial = false) => {
     if (!message) {
       return ''
     }
-    if (message.length > this.MAX_PATCH_COUNT) {
+    if (message.length > this.options.max_prompt_chars_count) {
       core.warning(
-        `Message is too long, truncate to ${this.MAX_PATCH_COUNT} tokens`
+        `Message is too long, truncate to ${this.options.max_prompt_chars_count} chars`
       )
-      message = message.substring(0, this.MAX_PATCH_COUNT)
+      message = message.substring(0, this.options.max_prompt_chars_count)
     }
     if (this.options.debug) {
       core.info(`sending to chatgpt: ${message}`)
     }
 
-    let response: ChatMessage | null = null
-    if (this.bot) {
-      let opts: SendMessageBrowserOptions = {}
-      if (this.history && !initial) {
-        opts.parentMessageId = this.history.id
-        opts.conversationId = this.history.conversationId
+    let chatCompletion: OpenAI.Chat.ChatCompletion | null = null
+    let messages: OpenAI.ChatCompletionMessageParam[] = []
+    if (this.openai) {
+      if (this.history.length > 0 && !initial) {
+        messages = [...this.history]
       }
-      core.info('opts: ' + JSON.stringify(opts))
-      response = await this.bot.sendMessage(message, opts)
+      messages.push({role: 'user', content: message})
+      const params: OpenAI.Chat.ChatCompletionCreateParams = {
+        messages,
+        model: this.options.model,
+        temperature: 0
+      }
+      core.info(`chatCompletion messages count: ${messages.length}`)
+
       try {
-        core.info(`response: ${JSON.stringify(response)}`)
+        chatCompletion = await this.openai.chat.completions.create(params)
+      } catch (error: any) {
+        // In case this is a RateLimitError, we retry after the suggested time
+        // More info regarding OpenAI API errors: https://github.com/openai/openai-node#handling-errors
+        if (error instanceof OpenAI.APIError && error.status === 429) {
+          const retryAfter =
+            (Number(error.headers?.['retry-after']) || 20) * 1000
+          core.info(`Rate limit exceeded, retry after ${retryAfter} seconds`)
+          await new Promise(resolve => setTimeout(resolve, retryAfter))
+          chatCompletion = await this.openai.chat.completions.create(params)
+        } else {
+          throw error
+        }
+      }
+
+      try {
+        core.info(`chatCompletion: ${JSON.stringify(chatCompletion)}`)
       } catch (e: any) {
         core.info(
-          `response: ${response}, failed to stringify: ${e}, backtrace: ${e.stack}`
-        )
-      }
-    } else if (this.turbo) {
-      let opts: SendMessageOptions = {}
-      if (this.history && !initial) {
-        opts.parentMessageId = this.history.id
-      }
-      response = await this.turbo.sendMessage(message, opts)
-      try {
-        core.info(`response: ${JSON.stringify(response)}`)
-      } catch (e: any) {
-        core.info(
-          `response: ${response}, failed to stringify: ${e}, backtrace: ${e.stack}`
+          `chatCompletion: ${chatCompletion}, failed to stringify: ${e}, backtrace: ${e.stack}`
         )
       }
     } else {
       core.setFailed('The chatgpt API is not initialized')
     }
-    let response_text = ''
-    if (response) {
+    let response_text: string | null = ''
+    if (chatCompletion) {
       if (initial) {
-        this.history = response
+        this.history = [...messages, chatCompletion.choices[0].message]
       }
-      response_text = response.text
+      response_text = chatCompletion.choices[0].message.content
     } else {
       core.warning('chatgpt response is null')
-    }
-    // remove the prefix "with " in the response
-    if (response_text.startsWith('with ')) {
-      response_text = response_text.substring(5)
     }
     if (this.options.debug) {
       core.info(`chatgpt responses: ${response_text}`)
