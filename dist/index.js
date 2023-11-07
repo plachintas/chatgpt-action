@@ -32360,7 +32360,7 @@ class Bot {
         }
     }
     chat = async (action, message, initial = false) => {
-        console.time(`chatgpt ${action} ${message.length} tokens cost`);
+        console.time(`chatgpt ${action} ${message.length} message chars count`);
         let response = null;
         try {
             response = await this.chat_(action, message, initial);
@@ -32369,7 +32369,7 @@ class Bot {
             core.warning(`Failed to chat: ${err}, backtrace: ${err.stack}, status: ${err.status}`);
         }
         finally {
-            console.timeEnd(`chatgpt ${action} ${message.length} tokens cost`);
+            console.timeEnd(`chatgpt ${action} ${message.length} message chars count`);
         }
         return response;
     };
@@ -32377,7 +32377,6 @@ class Bot {
         if (!message) {
             return '';
         }
-        core.info(`Prompt chars length: ${message.length}`);
         if (message.length > this.options.max_prompt_chars_count) {
             core.warning(`Message is too long, truncate to ${this.options.max_prompt_chars_count} chars`);
             message = message.substring(0, this.options.max_prompt_chars_count);
