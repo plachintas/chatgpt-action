@@ -32377,6 +32377,7 @@ class Bot {
         if (!message) {
             return '';
         }
+        core.info(`Message chars length: ${message.length}`);
         if (message.length > this.options.max_prompt_chars_count) {
             core.warning(`Message is too long, truncate to ${this.options.max_prompt_chars_count} chars`);
             message = message.substring(0, this.options.max_prompt_chars_count);
