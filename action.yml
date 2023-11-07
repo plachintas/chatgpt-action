@@ -81,7 +81,8 @@ inputs:
 
       I would like score the pull request, the score should be a number between 0 and 100
       and 85 means the the pull request is basically acceptable. You just need to reply a
-      number between 0 and 100, e.g., "85", and provide a short comment within 30 words.
+      number between 0 and 100, e.g., "85", and a comment within 40 words.
+      Both a score and a short comment should be in one reply.
       Next, I would give you the whole diff of the pull request. Reply "OK" to confirm.
   scoring:
     type: string
