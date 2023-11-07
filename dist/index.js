@@ -32377,7 +32377,7 @@ class Bot {
         if (!message) {
             return '';
         }
-        core.info(`Message chars length: ${message.length}`);
+        core.info(`Prompt chars length: ${message.length}`);
         if (message.length > this.options.max_prompt_chars_count) {
             core.warning(`Message is too long, truncate to ${this.options.max_prompt_chars_count} chars`);
             message = message.substring(0, this.options.max_prompt_chars_count);
@@ -32392,12 +32392,31 @@ class Bot {
                 messages = [...this.history];
             }
             messages.push({ role: 'user', content: message });
+            if (initial) {
+                const mocket_response = 'OK';
+                // NOTE: we don't need to send an initial message to chatgpt
+                // because it will be sent to chatgpt in the next round
+                this.history = [
+                    ...messages,
+                    { role: 'assistant', content: mocket_response }
+                ];
+                if (this.options.debug) {
+                    core.info(`chatgpt mocked response: ${mocket_response}`);
+                }
+                return mocket_response;
+            }
             const params = {
                 messages,
                 model: this.options.model,
                 temperature: 0
             };
-            core.info(`chatCompletion messages count: ${messages.length}`);
+            if (this.options.debug) {
+                core.info(`chatCompletion messages count: ${messages.length}`);
+                core.info(`chatCompletion messages: ${JSON.stringify(messages.map(m => ({
+                    ...m,
+                    content: `${m.content?.substr(0, 100)}${m.content?.length || 0 > 100 ? '...' : ''}`
+                })))}`);
+            }
             try {
                 chatCompletion = await this.openai.chat.completions.create(params);
             }
@@ -32426,9 +32445,10 @@ class Bot {
         }
         let response_text = '';
         if (chatCompletion) {
-            if (initial) {
-                this.history = [...messages, chatCompletion.choices[0].message];
-            }
+            // TODO: remove this part, if it works fine with mocked response
+            // if (initial) {
+            //   this.history = [...messages, chatCompletion.choices[0].message]
+            // }
             response_text = chatCompletion.choices[0].message.content;
         }
         else {

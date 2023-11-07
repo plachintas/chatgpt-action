@@ -75,12 +75,14 @@ inputs:
     default: |
       Hi ChatGPT, I have a pull request with title "$title" and the description is as follows,
 
-      > $description
+      ```markdown
+       $description
+      ```
 
       I would like score the pull request, the score should be a number between 0 and 100
       and 85 means the the pull request is basically acceptable. You just need to reply a
-      number between 0 and 100, e.g., "85", and a comment within 30 words. Next, I would
-      give you the whole diff of the pull request. Reply "OK" to confirm.
+      number between 0 and 100, e.g., "85", and provide a short comment within 30 words.
+      Next, I would give you the whole diff of the pull request. Reply "OK" to confirm.
   scoring:
     type: string
     required: false
