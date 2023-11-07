@@ -32,11 +32,11 @@ inputs:
       - https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#onpushpull_requestpull_request_targetpathspaths-ignore
       - https://github.com/isaacs/minimatch
     default: |
-      src/**/*.{js,ts,tsx}
-      *.config.js
-      package.json
+      **/*.{js,mjs,ts,tsx}
       .github/**/*.{yml,yaml}
-      scripts/**/*.{js,mjs}
+      *.config.js
+      !package-lock.json
+      **/*.json
   review_comment_lgtm:
     type: boolean
     required: false
