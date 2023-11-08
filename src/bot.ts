@@ -51,7 +51,7 @@ export class Bot {
       message = message.substring(0, this.options.max_prompt_chars_count)
       const threeBackTicksCount = [...message.matchAll(/```/g)].length
       if (threeBackTicksCount === 1) {
-        // Add closing ``` if there is only one
+        // Add closing ``` if there is only opening one
         message = message + '\n...\n```'
       }
     }
@@ -60,7 +60,13 @@ export class Bot {
     }
 
     let chatCompletion: OpenAI.Chat.ChatCompletion | null = null
-    let messages: OpenAI.ChatCompletionMessageParam[] = []
+    let messages: OpenAI.ChatCompletionMessageParam[] = [
+      {
+        role: 'system',
+        content:
+          'You are helpful assistant, which helps to review code changes in pull requests.'
+      }
+    ]
     if (this.openai) {
       if (this.history.length > 0 && !initial) {
         messages = [...this.history]
