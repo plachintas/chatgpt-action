@@ -32380,6 +32380,11 @@ class Bot {
         if (message.length > this.options.max_prompt_chars_count) {
             core.warning(`Message is too long, truncate to ${this.options.max_prompt_chars_count} chars`);
             message = message.substring(0, this.options.max_prompt_chars_count);
+            const threeBackTicksCount = [...message.matchAll(/```/g)].length;
+            if (threeBackTicksCount === 1) {
+                // Add closing ``` if there is only one
+                message = message + '\n...\n```';
+            }
         }
         if (this.options.debug) {
             core.info(`sending to chatgpt: ${message}`);
