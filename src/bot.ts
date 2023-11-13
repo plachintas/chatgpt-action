@@ -60,13 +60,7 @@ export class Bot {
     }
 
     let chatCompletion: OpenAI.Chat.ChatCompletion | null = null
-    let messages: OpenAI.ChatCompletionMessageParam[] = [
-      {
-        role: 'system',
-        content:
-          'You are helpful assistant, which helps to review code changes in pull requests.'
-      }
-    ]
+    let messages: OpenAI.ChatCompletionMessageParam[] = []
     if (this.openai) {
       if (this.history.length > 0 && !initial) {
         messages = [...this.history]

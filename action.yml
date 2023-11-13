@@ -32,6 +32,7 @@ inputs:
       - https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#onpushpull_requestpull_request_targetpathspaths-ignore
       - https://github.com/isaacs/minimatch
     default: |
+      !dist/**
       **/*.{js,mjs,ts,tsx}
       .github/**/*.{yml,yaml}
       *.config.js
@@ -47,11 +48,12 @@ inputs:
     required: false
     description: "The beginning prompt of a code review dialog"
     default: |
-      Hi ChatGPT, I have a pull request with title "$title" and the description is as follows,
+      Hi ChatGPT, I have a pull request with title "$title" and the description in tripple quotes
+      is as follows,
 
-      ```markdown
+      """
       $description.
-      ```
+      """
 
       Next, I will given you a series of patches, each of them consists of a filename and a diff
       snippet, and you need to do a brief code review for every message, and tell me any bug risk
@@ -75,16 +77,20 @@ inputs:
     required: false
     description: 'The prompt for the whole pull request'
     default: |
-      Hi ChatGPT, I have a pull request with title "$title" and the description is as follows,
+      Hi ChatGPT, I have a pull request with title "$title" and the description in tripple quotes
+      is as follows,
 
-      ```markdown
-       $description
-      ```
+      """
+      $description.
+      """
 
-      I would like score the pull request, the score should be a number between 0 and 100
-      and 85 means the the pull request is basically acceptable. You just need to reply a
-      number between 0 and 100, e.g., "85", and a comment within 40 words. Both a score
-      and a comment should be in one reply.
+      I would like score the pull request, the score should be a number between 0 and 100.
+      A couple of examples:
+        85 means that the pull request is basically acceptable;
+        75 means that the pull request has minor issue(s);
+        65 or less means that the pull request has major issue(s) or serious bug(s);
+      You just need to reply a number between 0 and 100, e.g., "85", and a comment within 40 words.
+      Both a score and a comment should be in one reply.
       Next, I would give you the whole diff of the pull request. Reply "OK" to confirm.
   scoring:
     type: string
