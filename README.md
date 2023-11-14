@@ -75,7 +75,7 @@ There're already many [chatgpt-actions][1], why we need to reinvent the wheel?
 - Scoring your pull requests
 
   ```yaml
-      - uses: unsafecoerce/chatgpt-action@main
+      - uses: plachintas/chatgpt-action@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -87,7 +87,7 @@ There're already many [chatgpt-actions][1], why we need to reinvent the wheel?
 - Code review your pull requests
 
   ```yaml
-      - uses: unsafecoerce/chatgpt-action@main
+      - uses: plachintas/chatgpt-action@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -100,7 +100,7 @@ There're already many [chatgpt-actions][1], why we need to reinvent the wheel?
 - Customizable prompt templates
 
   ```yaml
-      - uses: unsafecoerce/chatgpt-action@main
+      - uses: plachintas/chatgpt-action@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -140,7 +140,7 @@ jobs:
           ref: ${{github.event.pull_request.head.ref}}
           submodules: false
 
-      - uses: unsafecoerce/chatgpt-action@main
+      - uses: plachintas/chatgpt-action@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -148,7 +148,7 @@ jobs:
           debug: false
           action: score
 
-      - uses: unsafecoerce/chatgpt-action@main
+      - uses: plachintas/chatgpt-action@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -247,7 +247,7 @@ jobs:
           ref: ${{github.event.pull_request.head.ref}}
           submodules: false
 
-      - uses: unsafecoerce/chatgpt-action@main
+      - uses: plachintas/chatgpt-action@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -255,7 +255,7 @@ jobs:
           debug: false
           action: score
 
-      - uses: unsafecoerce/chatgpt-action@main
+      - uses: plachintas/chatgpt-action@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -271,7 +271,7 @@ See also: https://docs.github.com/en/actions/using-workflows/events-that-trigger
 
 The javascript's [chatgpt][2] package provides two implementations of the ChatGPT API:
 
-- `ChatGPTAPI`: official ChatGPT using the OpenAI's `text-davinci-003`.
+- `ChatGPT API`: official ChatGPT using the OpenAI's `gpt-3.5-turbo`.
   - not free
   - requires `OPENAI_API_KEY`
 
